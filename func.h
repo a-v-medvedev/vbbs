@@ -4,10 +4,10 @@ int start(int N)
 {
     nodelist l;
     while (true) {
-        sem.wait();
+        global::sem.wait();
         l.load();
         if (l.free < N) {
-            sem.post();
+            global::sem.post();
             continue;
         }
         break;
@@ -31,14 +31,14 @@ int start(int N)
     }
     l.save();
     std::cout << "id: " << l.max_id << std::endl;
-    sem.post();
+    global::sem.post();
     return 0;
 }
 
 int stop(int N) 
 {
     nodelist l;
-    sem.wait();
+    global::sem.wait();
     l.load();
     for (auto &n : l.busynodes) {
         if (n.id == N) {
@@ -53,14 +53,14 @@ int stop(int N)
             ++it;
     }
     l.save();
-    sem.post();
+    global::sem.post();
     return 0;
 }
 
 void defunct(const std::string &name)
 {
     nodelist l;
-    sem.wait();
+    global::sem.wait();
     l.load();
     for (auto &n : l.freenodes) {
         if (n.name == name) {
@@ -68,20 +68,20 @@ void defunct(const std::string &name)
         }
     }
     l.save();
-    sem.post();
+    global::sem.post();
 }
 
 void add(const std::string &name)
 {
     nodelist l;
-    sem.wait();
+    global::sem.wait();
     l.load();
     for (auto &n : l.freenodes) {
         if (n.name == name) {
             if (n.id == -1) {
                 n.id = 0;
                 l.save();
-                sem.post();
+                global::sem.post();
                 return;
             } else {
                 throw EX_ADD_DUPLICATE_NODE;
@@ -95,5 +95,5 @@ void add(const std::string &name)
     }
     l.freenodes.push_back(node { name, 0 } );
     l.save();
-    sem.post();
+    global::sem.post();
 }

@@ -6,10 +6,17 @@
 #include <fcntl.h>
 #include <signal.h>
 
+namespace global {
+    std::string semname;
+    std::string hostfile;
+}
+
 #include "exceptions.h"
 #include "sem.h"
 
-semaphore sem;
+namespace global {
+    semaphore sem;
+}
 
 #include "node.h"
 #include "func.h"
@@ -17,13 +24,15 @@ semaphore sem;
 void sighandler(int signo)
 {
     (void)signo;
-    if (!sem.inside)
-        sem.close();
+    if (!global::sem.inside)
+        global::sem.close();
     exit(1);
 }
 
 int main(int argc, char **argv)
 {
+    global::semname = "vbbs_sem";
+    global::hostfile = "aaa";
     if (argc < 3) {
         std::cerr << "VBBS: Usage: vbbs start|stop|defunct|add <N>" << std::endl;
         return 1;
@@ -32,7 +41,17 @@ int main(int argc, char **argv)
         std::cerr << "VBBS: cannot setup a signal handler" << std::endl;
         return 1;
     }
-    if (!sem.open()) {
+    if (!global::sem.open()) {
+        return 1;
+    }
+    std::string given_hostname;
+    bool malformed = false;
+    if (!nodelist::check_host(given_hostname, malformed)) {
+        if (!malformed) {
+            std::cerr << "VBBS: cannot handle batch on this host. Head hostname is " << given_hostname << std::endl;
+        } else {
+            std::cerr << "VBBS: hostfile is malformed" << std::endl;
+        }
         return 1;
     }
     int r = 0;
@@ -47,22 +66,24 @@ int main(int argc, char **argv)
             defunct(N);
         } else if (mode == "add") {
             add(N);
+        } else if (mode == "init") {
+            nodelist::init(std::stoi(N));
         } else {
             std::cerr << "VBBS: unknown mode" << std::endl;
-            sem.close();
+            global::sem.close();
             return 1;
         }
     }
     catch (exceptions &ex) {
         std::cerr << "EXCEPTION: " << int(ex) << std::endl;
-        sem.close();
+        global::sem.close();
         return 1;
     }
     catch (...) {
         std::cerr << "EXCEPTION" << std::endl;
-        sem.close();
+        global::sem.close();
         return 1;
     }
-    sem.close();
+    global::sem.close();
     return r;
 }

@@ -1,9 +1,3 @@
-node1 free 0
-node7 free 0
-node2 free 0
-node4 free 0
-node8 free 0
-node3 free 0
-node5 free 0
-node6 free 0
-max_id - 9
+head mars 0
+node1 busy 14
+max_id - 14
