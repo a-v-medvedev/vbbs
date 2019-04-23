@@ -67,6 +67,18 @@ void defunct(const std::string &name)
             n.id = -1;
         }
     }
+    for (auto &n : l.busynodes) {
+        if (n.name == name) {
+            n.id = -1;
+            l.freenodes.push_back(n);
+        }
+    }
+    for (auto it = l.busynodes.begin(); it != l.busynodes.end();) {
+        if (it->id == -1)
+            it = l.busynodes.erase(it);
+        else
+            ++it;
+    }
     l.save();
     global::sem.post();
 }
