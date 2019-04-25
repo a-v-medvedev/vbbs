@@ -4,88 +4,142 @@
 #include <vector>
 #include <map>
 #include <chrono>
+#include <deque>
+#include <thread>
+#include <mutex>
 
-#include <sstream>
+#include "utils.h"
 
-static void str_split(const std::string& s, char delimiter, std::vector<std::string> &result)
-{
-   std::string token;
-   std::istringstream token_stream(s);
-   while (std::getline(token_stream, token, delimiter)) {
-      result.push_back(token);
-   }
-}
-
-
-// --------------------------------------------------------------------------
-// The thread function. This is run in a separate thread for each socket.
-// Ownership of the socket object is transferred to the thread, so when this
-// function exits, the socket is automatically closed.
+std::mutex lock;
 
 struct node {
     std::vector<sockpp::tcp_socket> socks;
     std::string name;
+    std::deque<int> prod;
 };
 
 std::map<std::string, node> nodes;
 
+void defunct(const std::string &name) {
+    std::stringstream ss;
+    ss << "vbbs " << "defunct " << name;
+    int r =system(ss.str().c_str());
+    std::cout << ss.str() << " " << r << std::endl;
+}
+
+void add(const std::string &name) {
+   std::stringstream ss;
+   ss << "vbbs " << "add " << name;
+   int r =system(ss.str().c_str());
+   std::cout << ss.str() << " " << r << std::endl;
+}
+
+int read_str(sockpp::stream_socket &s, std::string &tag, std::string &str) {
+    int c1, c2; 
+    int len = 0;
+    char buf[512];
+    c1 = s.read(buf, 1);
+    if (c1 == 1) {
+        len = (int)buf[0];
+        c2 = s.read(buf, len);
+        if (c2 == len) {
+            buf[len] = 0;
+            std::string msg(buf);
+            std::vector<std::string> kv;
+            str_split(msg, ':', kv);
+            if (kv.size() != 2) {
+                return 0;
+            }
+            tag = kv[0];
+            str = kv[1];
+            return 1;
+        } else {
+            return c2;
+        }
+    } else {
+        return c1;
+    }
+}
+
 void run_echo(int x)
 {
     (void)x;
-    char buf[512] = { 0, };
-
     while (true) {
-        for (auto &n : nodes) {
-            bool disconnected = false;
-            for (auto it = n.second.socks.begin(); it != n.second.socks.end();) {
-                int c = it->read(buf, 512);
-                if (c > 0) {
-                    buf[c] = 0;
-                    if (n.second.name == "") {
-                       n.second.name = buf;
-                       std::cout << "vbbs " << "add " << buf << std::endl;
+        { 
+            std::lock_guard<std::mutex> guard(lock);
+            for (auto &n : nodes) {
+                bool disconnected = false;
+                auto &nd = n.second;
+                for (auto it = nd.socks.begin(); it != nd.socks.end();) {
+                    std::string tag, str;                
+                    int c = read_str(*it, tag, str);
+                    if (c > 0) {
+                        if (tag == "name" && nd.name == "") {
+                           nd.name = str;
+                           add(nd.name);
+                        }
+                        if (tag == "prod") {
+                            int prod = 0;
+                            try {
+                                prod = std::stoi(str);
+                            }
+                            catch(std::invalid_argument &) {}
+                            catch(std::out_of_range &) {}
+                            nd.prod.push_back(prod);
+                            //if (nd.prod.size() == 1 || nd.prod.size() == 100) {
+                            //    std::cout << "VBBS: " << nd.name << " prod=" << prod << std::endl;
+                            //}
+                            if (nd.prod.size() == 1001) {
+                                int v = nd.prod.front();
+                                nd.prod.pop_front();
+                                if (abs(v - prod) > 5 && v && prod) {
+                                    std::cout << "VBBS: " << nd.name << " " << v << " " << prod << std::endl;
+                                }
+                           }
+                        }
+                        ++it;
+                    } else if (c == 0) {
+                        if (nd.name != "") 
+                            defunct(nd.name);
+                        disconnected = true;
+                        ++it;
+                        break;
+                    } else {
+                        int err = it->last_error();
+                        if (err != EAGAIN) {
+                            std::cerr << "VBBS: connection error: c=" << c << " err=" << err << std::endl;
+                            if (nd.name != "") 
+                                defunct(nd.name);
+                            disconnected = true;
+                        }
+                        ++it;
+                        break;
                     }
-                    ++it;
-                } else if (c == 0) {
-                    std::cout << "vbbs " << "defunct " << n.second.name << std::endl;
-                    disconnected = true;
-                    ++it;
-                    break;
-                } else {
-                    int err = it->last_error();
-                    if (err != EAGAIN) {
-                        std::cout << ">> c=" << c << " err=" << err << std::endl;
-                    }
-                    ++it;
+                }
+                if (disconnected) {
+                    for (auto &s : nd.socks)
+                        s.close();
+                    nd.socks.resize(0);
+                    nd.name = "";
                 }
             }
-            if (disconnected) {
-                n.second.socks.resize(0);
-                n.second.name = "";
-            }
         }
-        usleep(50000);
+        usleep(5000);
     }
-/*
-    while ((n = sock.read(buf, sizeof(buf))) > 0) {
-        std::cout << "RECVD: " << buf << std::endl;
-    }
-        //sock.write_n(buf, n);
-
-    std::cout << "Connection closed from " << sock.peer_address() << std::endl;
-*/
 }
-
-// --------------------------------------------------------------------------
-// The main thread runs the TCP port acceptor. Each time a connection is
-// made, a new thread is spawned to handle it, leaving this main thread to
-// immediately wait for the next connection.
 
 int main(int argc, char* argv[])
 {
     (void)argc;
     (void)argv;
-    in_port_t port = 13345;
+
+    std::string hostfile, host, sem;
+    in_port_t port = 0;
+    const std::string varname = "VBBS_PARAMS";
+    if (!check_environment<in_port_t>(varname, hostfile, host, port, sem,
+                                               "hostfile", "master", 13345, "vbbs_sem")) {
+        std::cerr << "VBBS: environment variable " << varname << " is not set, applying defaults" << std::endl;
+    }
 
     sockpp::socket_initializer  sockInit;
     sockpp::tcp_acceptor        acc(port);
@@ -117,6 +171,7 @@ int main(int argc, char* argv[])
             std::vector<std::string> s;
             str_split(ss.str(), ':', s);
             sock.read_timeout(std::chrono::microseconds(1000));
+            std::lock_guard<std::mutex> guard(lock);
             nodes[s[0]].socks.push_back(std::move(sock));
         }
     }

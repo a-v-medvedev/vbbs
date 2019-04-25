@@ -109,3 +109,15 @@ void add(const std::string &name)
     l.save();
     global::sem.post();
 }
+
+void busyloop(const std::string &state)
+{
+    if (state != "on" && state != "off")
+        return;
+    nodelist l;
+    global::sem.wait();
+    l.load();
+    l.busyloop = state;
+    l.save();
+    global::sem.post();
+}

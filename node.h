@@ -1,40 +1,95 @@
 #pragma once
 
+#include <stdexcept>
+#include "utils.h"
+
 struct node {
     std::string name;
     int id;
 };
+
+static bool parse_next_line(std::ifstream &ifs, 
+                            std::string &name, std::string &state, int &id, 
+                            bool &malformed) {
+    std::string str;
+    std::vector<std::string> parts;
+    if (!getline(ifs, str))
+        return false;
+    str_split(str, ' ', parts);
+    if (parts.size() > 0) {
+        name = parts[0];
+    }
+    if (parts.size() > 1) {
+        state = parts[1];
+    }
+    if (parts.size() > 2) {
+        try {
+            id = std::stoi(parts[2]);
+        }
+        catch(std::invalid_argument &) { malformed = true; }
+        catch(std::out_of_range &) { malformed = true; }
+    }
+    if (parts.size() > 3)
+        malformed = true;
+    return true;
+}
 
 struct nodelist {
     int free = 0;
     int max_id = 0;
     std::vector<node> freenodes, busynodes;
     std::string hostname;
+    std::string busyloop;
     static void init(int N) {
         std::ofstream ofs;
         ofs.open(global::hostfile);
         if (!ofs.is_open()) {
             throw EX_FILE_OPEN_WRITE_ERROR;
         }
+        ofs << "busyloop " << "on" << std::endl;
         char local[1024];
         gethostname(local, 1024);
-        ofs << "head " << local << " " << 0 << std::endl;
+        ofs << "head " << local << std::endl;
         ofs << "max_id - " << N << std::endl;
         ofs.close();
     }
     static bool check_host(std::string &hostname, bool &malformed) {
         int max_id = -1;
         bool resolved_as_local = false;
+        bool has_busyloop = false;
         std::ifstream ifs;
         ifs.open(global::hostfile);
         if (!ifs.is_open()) {
             throw EX_FILE_OPEN_READ_ERROR;
         }
         while (true) {
-            std::string name, state; 
-            int id;
-            if (!(ifs >> name >> state >> id))
+            std::string name, state;
+            int id = -1;
+            if (!parse_next_line(ifs, name, state, id, malformed))
                 break;
+            /*
+            , str;
+            std::vector<std::string> parts;
+            int id = -1;
+            if (!getline(ifs, str))
+                break;
+            str_split(str, ' ', parts);
+            if (parts.size() > 0) {
+                name = parts[0];
+            }
+            if (parts.size() > 1) {
+                state = parts[1];
+            }
+            if (parts.size() > 2) {
+                try {
+                    id = std::stoi(parts[2]);
+                }
+                catch(std::invalid_argument &) { malformed = true; }
+                catch(std::out_of_range &) { malformed = true; }
+            }
+            if (parts.size() > 3)
+                malformed = true;
+                */
             if (name == "max_id") {
                 if (max_id < id)
                     max_id = id;
@@ -44,10 +99,14 @@ struct nodelist {
                 hostname = state;
                 gethostname(local, 1024);
                 resolved_as_local = (hostname == local);
+            } else if (name == "busyloop") {
+                has_busyloop = (state == "on" || state == "off");
             }
         }
         ifs.close();
-        malformed = (!resolved_as_local && hostname.size() == 0) || max_id < 0;
+        malformed = malformed || (!resolved_as_local || hostname.size() == 0);
+        malformed = malformed || (max_id < 0);
+        malformed = malformed || (!has_busyloop);
         return resolved_as_local; 
     }
     void load() {
@@ -63,14 +122,22 @@ struct nodelist {
         while (true) {
             std::string name, state; 
             int id;
+            bool malformed;
+            if (!parse_next_line(ifs, name, state, id, malformed))
+                break;
+            /*
             if (!(ifs >> name >> state >> id))
                 break;
+                */
             if (name == "max_id") {
                 if (max_id < id)
                     max_id = id;
                 continue;
             } else if (name == "head") {
                 hostname = state;
+                continue;
+            } else if (name == "busyloop") {
+                busyloop = state;
                 continue;
             }
 
@@ -96,7 +163,8 @@ struct nodelist {
         if (!ofs.is_open()) {
             throw EX_FILE_OPEN_WRITE_ERROR;
         }
-        ofs << "head " << hostname << " " << 0 << std::endl;
+        ofs << "busyloop " << busyloop << std::endl;
+        ofs << "head " << hostname << std::endl;
         for (auto &n : freenodes) {
             std::string state = (n.id == -1 ? "defunct" : "free");
             if (!(ofs << n.name << " " << state << " " << 0 << std::endl))
