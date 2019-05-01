@@ -5,6 +5,9 @@
 struct semaphore {
     sem_t *sem = NULL;
     bool gotit = false, inside = false;
+    void unlink() {
+        sem_unlink(global::semname.c_str());
+    }
     bool open(bool is_init_mode = true) {
         inside = true;
         if (is_init_mode) {
@@ -43,11 +46,16 @@ struct semaphore {
         sem = NULL;
         inside = false;
     }
-    void wait() {
+    void _wait() {
         inside = true;
         if (sem) {
             sem_wait(sem);
             gotit = true;
+            int value;
+            sem_getvalue(sem, &value);
+            if (value != 0) {
+                throw EX_SEM_INVALID;
+            }
         }
         inside = false;
     }
@@ -59,4 +67,46 @@ struct semaphore {
         }
         inside = false;
     }
+    void wait() {
+        int cnt = 0;
+        while (true) {
+            struct timespec ts;
+            if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
+                std::cerr << "VBBS: clock_gettime: error!" << std::endl;
+                perror("clock_gettime");
+                _wait();
+                return;
+            }
+            ts.tv_sec += 10;
+            inside = true;
+            int s = 0;
+            while ((s = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) {
+                continue;
+            }
+            inside = false;
+            if (s == -1) {
+                if (errno == ETIMEDOUT) {
+                    if (++cnt == 100) {
+                        throw EX_SEM_TIMEOUT;
+                    }
+                    std::cerr << "VBBS: timedwait: timeout!" << std::endl;
+                    usleep(10000);
+
+                    continue;
+                } else {
+                    std::cerr << "VBBS: sem_timedwait: error!" << std::endl;
+                    perror("sem_timedwait");
+                    return;
+                }
+            }
+            gotit = true;
+            int value;
+            sem_getvalue(sem, &value);
+            if (value != 0) {
+                throw EX_SEM_INVALID;
+            }
+            break;
+        }
+    }
+
 };

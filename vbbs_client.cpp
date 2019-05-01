@@ -22,13 +22,6 @@ int workload(const std::string &hostfile)
             return 0;
         }
     }
-    /*
-    struct stat buf;
-    if (stat("/home/alexeyvmedvedev_140/vbbs_lock", &buf) != -1) {
-        usleep(100000);
-        return 0;
-    }
-    */
     MPI_Request *reqs = nullptr;
     int num_requests = 0; 
     int stat[10] = { 0, };
@@ -115,27 +108,42 @@ int main(int argc, char **argv)
                                                "hostfile", "master", 13345, "vbbs_sem")) {
         std::cerr << "VBBS: environment variable " << varname << " is not set, applying defaults" << std::endl;
     }
-
+    MPI_Comm per_node_comm;
+    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL, &per_node_comm);
     sockpp::socket_initializer  sockInit;
     sockpp::tcp_connector       conn;
-
-    if (!conn.connect(sockpp::inet_address(host, port))) {
-        std::cerr << "Error connecting to " << host << " port=" << port << std::endl;
-        return 1;
-    }
     char local[1024];
     gethostname(local, 1024);
-    if (!write_str(conn, "name", local)) {
-        std::cerr << "Error writing to the TCP stream: " << conn.last_error_str() << std::endl;
-        MPI_Finalize();
-        return 0;
+    if (rank == 0) {
+        bool connected = false;
+        for (int i = 0; i < 5; i++) {
+            if (!conn.connect(sockpp::inet_address(host, port))) {
+                continue;
+            }
+            connected = true;
+            break;
+        }
+        if (!connected) {
+            std::cerr << "Error connecting to " << host << " port=" << port << std::endl;
+            MPI_Finalize();
+            return 1;
+        }
+        if (!write_str(conn, "name", local)) {
+            std::cerr << "Error writing to the TCP stream: " << conn.last_error_str() << std::endl;
+            MPI_Finalize();
+            return 0;
+        }
     }
     while (true) {
         int prod = workload(hostfile);
+        MPI_Reduce(MPI_IN_PLACE, &prod, 1, MPI_INT, MPI_MIN, 0, per_node_comm);
+        // TODO: add combining of prod results inside a node 
         usleep(300000 * (rank % 3 + 1) + 100000 * (rank % 11));
-        if (!write_str(conn, "prod", prod)) {
-            std::cerr << "Error writing to the TCP stream: " << conn.last_error_str() << std::endl;
-            break;
+        if (rank == 0) {
+            if (!write_str(conn, "prod", prod)) {
+                std::cerr << "Error writing to the TCP stream: " << conn.last_error_str() << std::endl;
+                break;
+            }
         }
     }
     MPI_Finalize();

@@ -11,7 +11,7 @@ vbbs_client: vbbs_client.cpp
 	$(MPICXX) -I. -L. -O2 -Wall -Wextra -std=c++11 -o $@ $< -lpthread -lsockpp
 
 vbbs_server: vbbs_server.cpp
-	$(CXX) -I. -L. -O0 -g -Wall -Wextra  -std=c++11 -o $@ $< -lpthread -lsockpp
+	$(CXX) -I. -L. -O2 -Wall -Wextra  -std=c++11 -o $@ $< -lpthread -lsockpp
 
 clean:
 	rm -f vbbs vbbs_client vbbs_server

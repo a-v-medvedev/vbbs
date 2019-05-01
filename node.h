@@ -2,11 +2,16 @@
 
 #include <stdexcept>
 #include "utils.h"
+#include <algorithm>
 
 struct node {
     std::string name;
     int id;
 };
+
+bool operator<(const node &lhs, const node &rhs) {
+    return lhs.name < rhs.name;
+}
 
 static bool parse_next_line(std::ifstream &ifs, 
                             std::string &name, std::string &state, int &id, 
@@ -51,7 +56,10 @@ struct nodelist {
         gethostname(local, 1024);
         ofs << "head " << local << std::endl;
         ofs << "max_id - " << N << std::endl;
+        ofs.flush();
+        usleep(10000);
         ofs.close();
+        usleep(10000);
     }
     static bool check_host(std::string &hostname, bool &malformed) {
         int max_id = -1;
@@ -67,29 +75,6 @@ struct nodelist {
             int id = -1;
             if (!parse_next_line(ifs, name, state, id, malformed))
                 break;
-            /*
-            , str;
-            std::vector<std::string> parts;
-            int id = -1;
-            if (!getline(ifs, str))
-                break;
-            str_split(str, ' ', parts);
-            if (parts.size() > 0) {
-                name = parts[0];
-            }
-            if (parts.size() > 1) {
-                state = parts[1];
-            }
-            if (parts.size() > 2) {
-                try {
-                    id = std::stoi(parts[2]);
-                }
-                catch(std::invalid_argument &) { malformed = true; }
-                catch(std::out_of_range &) { malformed = true; }
-            }
-            if (parts.size() > 3)
-                malformed = true;
-                */
             if (name == "max_id") {
                 if (max_id < id)
                     max_id = id;
@@ -121,14 +106,10 @@ struct nodelist {
         }
         while (true) {
             std::string name, state; 
-            int id;
+            int id = 0;
             bool malformed;
             if (!parse_next_line(ifs, name, state, id, malformed))
                 break;
-            /*
-            if (!(ifs >> name >> state >> id))
-                break;
-                */
             if (name == "max_id") {
                 if (max_id < id)
                     max_id = id;
@@ -163,6 +144,8 @@ struct nodelist {
         if (!ofs.is_open()) {
             throw EX_FILE_OPEN_WRITE_ERROR;
         }
+        std::sort(freenodes.begin(), freenodes.end());
+        std::sort(busynodes.begin(), busynodes.end());
         ofs << "busyloop " << busyloop << std::endl;
         ofs << "head " << hostname << std::endl;
         for (auto &n : freenodes) {
@@ -175,6 +158,9 @@ struct nodelist {
                 throw EX_FILE_OPEN_WRITE_ERROR;
         }
         ofs << "max_id - " << max_id << std::endl;
+        ofs.flush();
+        usleep(10000);
         ofs.close(); 
+        usleep(10000);
     }
 };

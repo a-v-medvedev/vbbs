@@ -1,5 +1,20 @@
 #pragma once
 
+bool check_host(std::string &hostname, bool &malformed)
+{
+    global::sem.wait();
+    auto r = nodelist::check_host(hostname, malformed);
+    global::sem.post();
+    return r;
+}
+
+void init(int N)
+{
+    global::sem.wait();
+    nodelist::init(N);
+    global::sem.post();
+}
+
 int start(int N)
 {
     nodelist l;
@@ -8,6 +23,7 @@ int start(int N)
         l.load();
         if (l.free < N) {
             global::sem.post();
+            usleep(100000);
             continue;
         }
         break;

@@ -44,18 +44,25 @@ int main(int argc, char **argv)
         std::cerr << "VBBS: Usage: vbbs start|stop|defunct|add|init <N>" << std::endl;
         return 1;
     }
-    if (signal(SIGTERM, sighandler) == SIG_ERR || signal(SIGINT, sighandler) == SIG_ERR) {
+    if (signal(SIGTERM, sighandler) == SIG_ERR || signal(SIGINT, sighandler) == SIG_ERR ||
+        signal(SIGHUP, sighandler) == SIG_ERR || signal(SIGBUS, sighandler) == SIG_ERR ||
+        signal(SIGSEGV, sighandler) == SIG_ERR || signal(SIGFPE, sighandler) == SIG_ERR ||
+        signal(SIGQUIT, sighandler) == SIG_ERR || signal(SIGILL, sighandler) == SIG_ERR ||
+        signal(SIGABRT, sighandler) == SIG_ERR) {
         std::cerr << "VBBS: cannot setup a signal handler" << std::endl;
         return 1;
     }
-    bool is_init_mode = (std::string(argv[1]) == "init");
+    if (std::string(argv[1]) == "init") {
+        global::sem.unlink();
+    }
+    bool is_init_mode = (std::string(argv[1]) == "init" || std::string(argv[1]) == "sempost");
     if (!global::sem.open(is_init_mode)) {
         return 1;
     }
     std::string given_hostname;
     bool malformed = false;
     if (!is_init_mode) {
-        if (!nodelist::check_host(given_hostname, malformed)) {
+        if (!check_host(given_hostname, malformed)) {
             if (!malformed) {
                 std::cerr << "VBBS: cannot handle batch on this host. Head hostname is " 
                           << given_hostname << std::endl;
@@ -78,9 +85,12 @@ int main(int argc, char **argv)
         } else if (mode == "add") {
             add(N);
         } else if (mode == "init") {
-            nodelist::init(std::stoi(N));
+            init(std::stoi(N));
         } else if (mode == "busyloop") {
             busyloop(N);
+        } else if (mode == "sempost") {
+            global::sem.gotit = true;
+            global::sem.post();
         } else {
             std::cerr << "VBBS: unknown mode" << std::endl;
             global::sem.close();
@@ -89,6 +99,11 @@ int main(int argc, char **argv)
     }
     catch (exceptions &ex) {
         std::cerr << "EXCEPTION: " << int(ex) << std::endl;
+        global::sem.close();
+        return 1;
+    }
+    catch (std::exception &ex) {
+        std::cerr << "EXCEPTION: " << ex.what() << std::endl;
         global::sem.close();
         return 1;
     }

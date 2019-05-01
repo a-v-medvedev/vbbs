@@ -61,6 +61,23 @@ int read_str(sockpp::stream_socket &s, std::string &tag, std::string &str) {
     }
 }
 
+int get_num_socks()
+{
+    std::lock_guard<std::mutex> guard(lock);
+    int N = 0;
+    for (auto &n : nodes) {
+        auto &nd = n.second;
+        N += nd.socks.size();
+    }
+    return N;
+}
+
+void add_socket_to_node(const std::string &str, sockpp::tcp_socket &&sock) {
+    std::lock_guard<std::mutex> guard(lock);
+    nodes[str].socks.push_back(std::move(sock));
+}
+
+
 void run_echo(int x)
 {
     (void)x;
@@ -86,10 +103,7 @@ void run_echo(int x)
                             catch(std::invalid_argument &) {}
                             catch(std::out_of_range &) {}
                             nd.prod.push_back(prod);
-                            //if (nd.prod.size() == 1 || nd.prod.size() == 100) {
-                            //    std::cout << "VBBS: " << nd.name << " prod=" << prod << std::endl;
-                            //}
-                            if (nd.prod.size() == 1001) {
+                            if (nd.prod.size() == 101) {
                                 int v = nd.prod.front();
                                 nd.prod.pop_front();
                                 if (abs(v - prod) > 5 && v && prod) {
@@ -163,15 +177,19 @@ int main(int argc, char* argv[])
         if (!sock) {
             std::cerr << "Error accepting incoming connection: " 
                 << acc.last_error_str() << std::endl;
+            usleep(1000);
+            if (get_num_socks() > 900) {
+                sleep(1);
+            }
         }
         else {
-            // Create a thread and transfer the new stream to it.
             std::stringstream ss;
             ss << sock.peer_address();
             std::vector<std::string> s;
             str_split(ss.str(), ':', s);
             sock.read_timeout(std::chrono::microseconds(1000));
             std::lock_guard<std::mutex> guard(lock);
+            // TODO: add_socket_to_node(s[0], std::move(sock));
             nodes[s[0]].socks.push_back(std::move(sock));
         }
     }
