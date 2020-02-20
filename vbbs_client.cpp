@@ -136,7 +136,7 @@ int main(int argc, char **argv)
     }
     while (true) {
         int prod = workload(hostfile);
-        MPI_Reduce(MPI_IN_PLACE, &prod, 1, MPI_INT, MPI_MIN, 0, per_node_comm);
+        MPI_Reduce(rank == 0 ? MPI_IN_PLACE : &prod, &prod, 1, MPI_INT, MPI_MIN, 0, per_node_comm);
         // TODO: add combining of prod results inside a node 
         usleep(300000 * (rank % 3 + 1) + 100000 * (rank % 11));
         if (rank == 0) {
