@@ -1,6 +1,7 @@
 #pragma once
 #include <fcntl.h>
 #include <semaphore.h>
+#include <unistd.h>
 
 struct semaphore {
     sem_t *sem = NULL;
@@ -26,6 +27,12 @@ struct semaphore {
                     return false;
                 }
             }
+            sem_init(sem, 1, 1);
+#ifdef WITH_DEBUG            
+            int value;
+            sem_getvalue(sem, &value);
+            std::cout << ">> semaphore: after init: " << value << std::endl;
+#endif            
         } else {
             if ((sem = sem_open(global::semname.c_str(), O_EXCL)) == SEM_FAILED) {
                 std::cerr << "VBBS: semaphore open error: " << global::semname.c_str() << std::endl;
@@ -69,10 +76,15 @@ struct semaphore {
     }
     void wait() {
         int cnt = 0;
+#ifdef WITH_DEBUG        
+        int value;
+        sem_getvalue(sem, &value);
+        std::cout << ">> semaphore: before wait: " << value << std::endl;
+#endif        
         while (true) {
             struct timespec ts;
             if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
-                std::cerr << "VBBS: clock_gettime: error!" << std::endl;
+                std::cerr << "VBBS: wait(): clock_gettime: error!" << std::endl;
                 perror("clock_gettime");
                 _wait();
                 return;
@@ -89,12 +101,12 @@ struct semaphore {
                     if (++cnt == 100) {
                         throw EX_SEM_TIMEOUT;
                     }
-                    std::cerr << "VBBS: timedwait: timeout!" << std::endl;
+                    std::cerr << "VBBS: wait(): timedwait: timeout!" << std::endl;
                     usleep(10000);
 
                     continue;
                 } else {
-                    std::cerr << "VBBS: sem_timedwait: error!" << std::endl;
+                    std::cerr << "VBBS: wait(): sem_timedwait: error!" << std::endl;
                     perror("sem_timedwait");
                     return;
                 }
@@ -103,6 +115,7 @@ struct semaphore {
             int value;
             sem_getvalue(sem, &value);
             if (value != 0) {
+                std::cerr << "VBBS: wait(): logic error: sem value is not 0 after wait() completion!" << std::endl;
                 throw EX_SEM_INVALID;
             }
             break;

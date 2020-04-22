@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include "utils.h"
 #include <algorithm>
+#include <unistd.h>
 
 struct node {
     std::string name;
@@ -46,7 +47,6 @@ struct nodelist {
     std::string hostname;
     std::string busyloop;
     static void init(int N) {
-        global::sem.wait();
         std::ofstream ofs;
         ofs.open(global::hostfile);
         if (!ofs.is_open()) {
@@ -60,11 +60,9 @@ struct nodelist {
         ofs.flush();
         usleep(10000);
         ofs.close();
-        global::sem.post();
         usleep(10000);
     }
     static bool check_host(std::string &hostname, bool &malformed) {
-        global::sem.wait();
         int max_id = -1;
         bool resolved_as_local = false;
         bool has_busyloop = false;
@@ -95,7 +93,6 @@ struct nodelist {
         malformed = malformed || (!resolved_as_local || hostname.size() == 0);
         malformed = malformed || (max_id < 0);
         malformed = malformed || (!has_busyloop);
-        global::sem.post();
         return resolved_as_local; 
     }
     void load() {

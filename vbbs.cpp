@@ -41,7 +41,7 @@ int main(int argc, char **argv)
                   << " is not set or is incorrect, applying defaults" << std::endl;
     }
     if (argc < 3) {
-        std::cerr << "VBBS: Usage: vbbs start|stop|defunct|add|init <N>" << std::endl;
+        std::cerr << "VBBS: Usage: vbbs start|stop|defunct|add|init|busyloop|sempost <N>" << std::endl;
         return 1;
     }
     if (signal(SIGTERM, sighandler) == SIG_ERR || signal(SIGINT, sighandler) == SIG_ERR ||
@@ -54,11 +54,13 @@ int main(int argc, char **argv)
     }
     if (std::string(argv[1]) == "init") {
         global::sem.unlink();
+        if (!global::sem.open(true))
+            return 1;
+    } else {
+        if (!global::sem.open(false))
+            return 1;
     }
     bool is_init_mode = (std::string(argv[1]) == "init" || std::string(argv[1]) == "sempost");
-    if (!global::sem.open(is_init_mode)) {
-        return 1;
-    }
     std::string given_hostname;
     bool malformed = false;
     if (!is_init_mode) {
@@ -84,7 +86,7 @@ int main(int argc, char **argv)
             defunct(N);
         } else if (mode == "add") {
             add(N);
-        } else if (mode == "init") {
+        } else if (mode == "init") {            
             init(std::stoi(N));
         } else if (mode == "busyloop") {
             busyloop(N);
@@ -98,7 +100,7 @@ int main(int argc, char **argv)
         }
     }
     catch (exceptions &ex) {
-        std::cerr << "EXCEPTION: " << int(ex) << std::endl;
+        std::cerr << "EXCEPTION: " << exc2str(ex) << std::endl;
         global::sem.close();
         return 1;
     }

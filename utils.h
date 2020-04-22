@@ -54,5 +54,8 @@ bool check_environment(const std::string &varname, std::string &hostfile, std::s
         port = def_port;
     if (sem == "")
         sem = def_sem;
+#ifdef WITH_DEBUG    
+    std::cout << ">> Environment: " << hostfile << " " << host << " " << port << " " << sem << " " << std::endl;
+#endif    
     return r;
 }

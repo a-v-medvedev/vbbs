@@ -1,17 +1,21 @@
 MPICXX ?= mpicxx
 
+# FIXME __USE_BSD is a fix for gcc 9.1 on Lom2
+#CXX_FLAGS += -D__USE_BSD -O0 -g -DWITH_DEBUG
+CXX_FLAGS += -D__USE_BSD -O2
+
 all: vbbs vbbs_client vbbs_server
 
 vbbs: Makefile exceptions.h  func.h  node.h  sem.h
 
 vbbs: vbbs.cpp
-	$(CXX) -O2 -Wall -Wextra -pedantic -std=c++11 -o $@ $< -lpthread
+	$(CXX) -Wall -Wextra -pedantic -std=c++11 $(CXX_FLAGS) -o $@ $< -lpthread
 
 vbbs_client: vbbs_client.cpp
-	$(MPICXX) -I. -L. -O2 -Wall -Wextra -std=c++11 -o $@ $< -lpthread -lsockpp
+	$(MPICXX) -I. -L. -Wall -Wextra -std=c++11 $(CXX_FLAGS) -o $@ $< -lpthread -lsockpp
 
 vbbs_server: vbbs_server.cpp
-	$(CXX) -I. -L. -O2 -Wall -Wextra  -std=c++11 -o $@ $< -lpthread -lsockpp
+	$(CXX) -I. -L. -Wall -Wextra  -std=c++11 $(CXX_FLAGS) -o $@ $< -lpthread -lsockpp
 
 clean:
 	rm -f vbbs vbbs_client vbbs_server

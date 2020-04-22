@@ -5,11 +5,14 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <memory>
 #include "sockpp/tcp_connector.h"
 #include "utils.h"
 
-int workload(const std::string &hostfile)
+
+bool check_workload_mode(const std::string &hostfile) 
 {
+    bool no_workload = false;
     std::ifstream ifs;
     ifs.open(hostfile);
     if (ifs.is_open()) {
@@ -18,10 +21,17 @@ int workload(const std::string &hostfile)
         getline(ifs, str);
         str_split(str, ' ', s);
         if (s.size() != 2 || s[0] != "busyloop" || s[1] != "on") {
-            usleep(1000000);
-            return 0;
+            no_workload = true;
         }
+        ifs.close();
+    } else {
+        no_workload = true;
     }
+    return !no_workload;
+}
+
+int workload()
+{
     MPI_Request *reqs = nullptr;
     int num_requests = 0; 
     int stat[10] = { 0, };
@@ -76,29 +86,75 @@ int workload(const std::string &hostfile)
     return ncalcs;
 }
 
-bool write_str(sockpp::stream_socket &s, const std::string &tag, const std::string &str)
+
+namespace sys 
 {
-    std::stringstream ss;
-    ss << tag << ":" << str;
-    std::string msg = ss.str() + "\0";
-    char l = (char)(msg.length() & 0xff);
-    if (s.write_n(&l, 1) != 1) 
-        return false;
-    if (s.write_n(msg.c_str(), msg.length()) != (int)msg.length()) 
-        return false;
-    return true;
+    std::string myhostname() 
+    {
+        char local[1024];
+        gethostname(local, 1024);
+        local[1024-1] = 0;
+        return std::string(local);
+    }
 }
 
-bool write_str(sockpp::stream_socket &s, const std::string &tag, int value)
+namespace comm 
 {
-    std::stringstream ss;
-    ss << value;
-    return write_str(s, tag, ss.str());
+    std::shared_ptr<sockpp::tcp_connector> get_new_sock()
+    {
+        return std::make_shared<sockpp::tcp_connector>();
+    }
+
+    bool connect(std::shared_ptr<sockpp::tcp_connector> &sock, 
+                 const std::string &host, in_port_t port) {
+        bool connected = false;
+        for (int i = 0; i < 5; i++) {
+            std::cout << "vbbs_client: connecting to " << host << " " << port << std::endl;
+            if (!sock->connect(sockpp::inet_address(host, port))) {
+                continue;
+            }
+            connected = true;
+            break;
+        }
+        if (!connected) {
+            std::cerr << "vbbs_client: error connecting to " << host << " port="
+                      << port << std::endl;
+            return false;
+        }
+        return true;
+    }
+
+    bool write_str(std::shared_ptr<sockpp::tcp_connector> &sock, const std::string &tag, 
+                   const std::string &str)
+    {
+        std::stringstream ss;
+        ss << tag << ":" << str;
+        std::string msg = ss.str() + "\0";
+        char l = (char)(msg.length() & 0xff);
+        if (sock->write_n(&l, 1) != 1) 
+            return false;
+        if (sock->write_n(msg.c_str(), msg.length()) != (int)msg.length()) 
+            return false;
+        return true;
+    }
+
+    bool write_str(std::shared_ptr<sockpp::tcp_connector> &sock, const std::string &tag, 
+                   int value)
+    {
+        std::stringstream ss;
+        ss << value;
+        return write_str(sock, tag, ss.str());
+    }
+
+    std::string lasterror(std::shared_ptr<sockpp::tcp_connector> &sock)
+    {
+        return sock->last_error_str();
+    }
 }
 
 int main(int argc, char **argv)
 {
-    int rank;
+    int rank, per_node_rank;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     std::string hostfile, host, sem;
@@ -106,46 +162,48 @@ int main(int argc, char **argv)
     const std::string varname = "VBBS_PARAMS";
     if (!check_environment<in_port_t>(varname, hostfile, host, port, sem, 
                                                "hostfile", "master", 13345, "vbbs_sem")) {
-        std::cerr << "VBBS: environment variable " << varname << " is not set, applying defaults" << std::endl;
+        std::cerr << "vbbs_client: environment variable " << varname 
+                  << " is not set, applying defaults" << std::endl;
     }
     MPI_Comm per_node_comm;
     MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL, &per_node_comm);
-    sockpp::socket_initializer  sockInit;
-    sockpp::tcp_connector       conn;
-    char local[1024];
-    gethostname(local, 1024);
-    if (rank == 0) {
-        bool connected = false;
-        for (int i = 0; i < 5; i++) {
-            if (!conn.connect(sockpp::inet_address(host, port))) {
-                continue;
-            }
-            connected = true;
-            break;
-        }
-        if (!connected) {
-            std::cerr << "Error connecting to " << host << " port=" << port << std::endl;
-            MPI_Finalize();
+    MPI_Comm_rank(per_node_comm, &per_node_rank);
+    auto sock = comm::get_new_sock();
+    if (per_node_rank == 0) {
+        if (!comm::connect(sock, host, port)) {
             return 1;
         }
-        if (!write_str(conn, "name", local)) {
-            std::cerr << "Error writing to the TCP stream: " << conn.last_error_str() << std::endl;
-            MPI_Finalize();
+        auto hostname = sys::myhostname();
+        std::cout << "vbbs_client: writing: name=" << hostname << std::endl;
+        if (!comm::write_str(sock, "name", hostname)) {
+            std::cerr << "vbbs_client: error writing to the TCP stream: " 
+                      << comm::lasterror(sock) << std::endl;
             return 0;
         }
     }
+    int cnt = 0;
     while (true) {
-        int prod = workload(hostfile);
-        MPI_Reduce(rank == 0 ? MPI_IN_PLACE : &prod, &prod, 1, MPI_INT, MPI_MIN, 0, per_node_comm);
+        int prod = 0;
+        if (!check_workload_mode(hostfile)) {
+            usleep(1000000);
+        } else {
+            prod = workload();
+        }
         // TODO: add combining of prod results inside a node 
-        usleep(300000 * (rank % 3 + 1) + 100000 * (rank % 11));
-        if (rank == 0) {
-            if (!write_str(conn, "prod", prod)) {
-                std::cerr << "Error writing to the TCP stream: " << conn.last_error_str() << std::endl;
-                break;
+        // FIXME blocking MPI_Reduce results in waiting: each rank has its own delay
+        //MPI_Reduce(rank == 0 ? MPI_IN_PLACE : &prod, &prod, 1, MPI_INT, MPI_MIN, 0, per_node_comm);
+        ++cnt;
+        cnt = (cnt % 17);
+        usleep(30 * ((rank + cnt) % 3 + 1) + 10 * ((rank + cnt) % 11));
+        if (per_node_rank == 0) {
+            if (!comm::write_str(sock, "prod", prod)) {
+                std::cerr << "vbbs_client: error writing to the TCP stream: " 
+                          << comm::lasterror(sock) << std::endl;
+                return 0;
             }
         }
     }
-    MPI_Finalize();
+    // Unreachable:
+    //MPI_Finalize();
     return 0;
 }

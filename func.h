@@ -1,5 +1,8 @@
 #pragma once
 
+#include <unistd.h>
+
+
 bool check_host(std::string &hostname, bool &malformed)
 {
     global::sem.wait();
@@ -18,9 +21,15 @@ void init(int N)
 int start(int N)
 {
     nodelist l;
+    int id = -1;
     while (true) {
         global::sem.wait();
         l.load();
+        if (id == -1) {
+            id = ++l.max_id;
+            l.save();
+            std::cout << "id: " << l.max_id << std::endl;
+        }
         if (l.free < N) {
             global::sem.post();
             usleep(100000);
@@ -28,12 +37,11 @@ int start(int N)
         }
         break;
     }
-    l.max_id++;
     int cnt = 0;
     for (auto &n : l.freenodes) {
         if (n.id == -1)
             continue;
-        n.id = l.max_id;
+        n.id = id;
         l.busynodes.push_back(n);
         std::cout << "node: " << n.name << std::endl;
         if (++cnt == N)
@@ -46,7 +54,6 @@ int start(int N)
             ++it;
     }
     l.save();
-    std::cout << "id: " << l.max_id << std::endl;
     global::sem.post();
     return 0;
 }
