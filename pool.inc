@@ -4,12 +4,14 @@ POOL_CNT=0
 
 function wait_if_necessary {
     amount=$1
+    output=$2
     while 
             count=`jobs -rp | wc -l`
             do_wait1=$(($count >= $amount))
             if [ -f lock ]; then do_wait2=1; POOL_LOCKED=`expr $POOL_LOCKED \+ 1`; else do_wait2=0; POOL_LOCKED=0; fi
             if [ "$do_wait1" -eq "1" -a "$count" -gt "$POOL_CNT" ]; then
                 echo "Now $count jobs are running, wait..."
+                [ ! -z "$output" ] && sleep 3 && id=$(grep 'Job ID' ${output}.${POOL_N}) && echo "NOTE: last submitted was:" $id
             fi
             if [ "$do_wait2" -eq "1" -a "$POOL_LOCKED" -eq "1" ]; then
                 echo "Lock file found, wait..."
@@ -26,7 +28,7 @@ function run_task {
         cmd=$1
         output=$2
         concurency=$3
-        wait_if_necessary $concurency
+        wait_if_necessary $concurency $output
         count=`jobs -rp | wc -l`
         count=`expr $count \+ 1`
         POOL_N=$(expr ${POOL_N} \+ 1)
