@@ -1,14 +1,14 @@
 #include <iostream>
 #include <thread>
-#include "sockpp/tcp_acceptor.h"
 #include <vector>
 #include <map>
 #include <chrono>
 #include <deque>
 #include <thread>
 #include <mutex>
-
 #include "utils.h"
+#include "sys.h"
+#include "comm.h"
 
 struct node {
     std::vector<sockpp::tcp_socket> socks;
@@ -20,87 +20,6 @@ struct node {
 namespace global {
     std::mutex lock;
     std::map<std::string, node> nodes;
-}
-
-namespace sys {
-void defunct_node(const std::string &name) {
-    std::stringstream ss;
-    ss << "vbbs " << "defunct " << name;
-    int r = system(ss.str().c_str());
-    std::cout << ss.str() << " ret=" << r << std::endl;
-}
-
-void add_node(const std::string &name) {
-   std::stringstream ss;
-   ss << "vbbs " << "add " << name;
-   int r = system(ss.str().c_str());
-   std::cout << ss.str() << " ret=" << r << std::endl;
-}
-}
-
-namespace comm {
-    int read_str(sockpp::stream_socket &s, std::string &tag, std::string &str) {
-        int c1, c2; 
-        int len = 0;
-        char buf[512];
-        c1 = s.read(buf, 1);
-        if (c1 == 1) {
-            len = (int)buf[0];
-            c2 = s.read(buf, len);
-            if (c2 == len) {
-                buf[len] = 0;
-                std::string msg(buf);
-                std::vector<std::string> kv;
-                str_split(msg, ':', kv);
-                if (kv.size() != 2) {
-                    return 0;
-                }
-                tag = kv[0];
-                str = kv[1];
-                return 1;
-            } else {
-                return c2;
-            }
-        } else {
-            return c1;
-        }
-    }
-
-    std::shared_ptr<sockpp::tcp_acceptor> make_acceptor(int port) {
-        auto acc = std::make_shared<sockpp::tcp_acceptor>(port);
-        if (!(*acc)) {
-            std::cerr << "vbbs_server: error creating an acceptor: " 
-                      << acc->last_error_str() << std::endl;
-            throw 1;
-        }
-        return acc;
-    }
-
-    sockpp::tcp_socket accept_connection(sockpp::tcp_acceptor &acc) {
-        sockpp::inet_address peer;
-        return std::move(acc.accept(&peer));
-    }
-
-    bool check_if_socket_is_ok(sockpp::tcp_socket &sock, const sockpp::tcp_acceptor &acc) {
-        if (!sock) {
-            std::cerr << "vbbs_server: error accepting incoming connection: "
-                      << acc.last_error_str() << std::endl;
-            return false;
-        }
-        return true;
-    }
-
-    std::string get_peer_name(sockpp::tcp_socket &sock) {
-        std::stringstream ss;
-        ss << sock.peer_address();
-        std::vector<std::string> s;
-        str_split(ss.str(), ':', s);
-        return s[0];
-    }
-
-    void set_sock_params(sockpp::tcp_socket &sock) {
-        sock.read_timeout(std::chrono::microseconds(1000));
-    }    
 }
 
 static inline int get_num_socks()
@@ -212,7 +131,7 @@ int main(int argc, char* argv[])
         std::thread thr(server_loop, 0);
         thr.detach();
         while (true) {
-            sockpp::tcp_socket sock = comm::accept_connection(*acceptor);
+            auto sock = comm::accept_connection(*acceptor);
             if (!comm::check_if_socket_is_ok(sock, *acceptor)) {
                 usleep(1000);
                 if (get_num_socks() > 900) {

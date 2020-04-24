@@ -6,8 +6,9 @@
 #include <fstream>
 #include <string>
 #include <memory>
-#include "sockpp/tcp_connector.h"
 #include "utils.h"
+#include "sys.h"
+#include "comm.h"
 
 
 bool check_workload_mode(const std::string &hostfile) 
@@ -84,72 +85,6 @@ int workload()
         tmedian = std::min(std::max(timings[0], timings[1]), timings[2]);
     int ncalcs = (int)((double)R / (tmedian * 1.0e5) + 0.99);
     return ncalcs;
-}
-
-
-namespace sys 
-{
-    std::string myhostname() 
-    {
-        char local[1024];
-        gethostname(local, 1024);
-        local[1024-1] = 0;
-        return std::string(local);
-    }
-}
-
-namespace comm 
-{
-    std::shared_ptr<sockpp::tcp_connector> get_new_sock()
-    {
-        return std::make_shared<sockpp::tcp_connector>();
-    }
-
-    bool connect(std::shared_ptr<sockpp::tcp_connector> &sock, 
-                 const std::string &host, in_port_t port) {
-        bool connected = false;
-        for (int i = 0; i < 5; i++) {
-            std::cout << "vbbs_client: connecting to " << host << " " << port << std::endl;
-            if (!sock->connect(sockpp::inet_address(host, port))) {
-                continue;
-            }
-            connected = true;
-            break;
-        }
-        if (!connected) {
-            std::cerr << "vbbs_client: error connecting to " << host << " port="
-                      << port << std::endl;
-            return false;
-        }
-        return true;
-    }
-
-    bool write_str(std::shared_ptr<sockpp::tcp_connector> &sock, const std::string &tag, 
-                   const std::string &str)
-    {
-        std::stringstream ss;
-        ss << tag << ":" << str;
-        std::string msg = ss.str() + "\0";
-        char l = (char)(msg.length() & 0xff);
-        if (sock->write_n(&l, 1) != 1) 
-            return false;
-        if (sock->write_n(msg.c_str(), msg.length()) != (int)msg.length()) 
-            return false;
-        return true;
-    }
-
-    bool write_str(std::shared_ptr<sockpp::tcp_connector> &sock, const std::string &tag, 
-                   int value)
-    {
-        std::stringstream ss;
-        ss << value;
-        return write_str(sock, tag, ss.str());
-    }
-
-    std::string lasterror(std::shared_ptr<sockpp::tcp_connector> &sock)
-    {
-        return sock->last_error_str();
-    }
 }
 
 int main(int argc, char **argv)
