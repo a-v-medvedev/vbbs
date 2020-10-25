@@ -56,7 +56,7 @@ void handle_message(node &nd, const std::string &tag, const std::string &str)
         if (nd.prod.size() == 101) {
             int v = nd.prod.front();
             nd.prod.pop_front();
-            if (abs(v - prod) > 5 && v && prod) {
+            if (abs(v - prod) > 80000000 && v > 0 && prod > 0) {
                 std::cout << "vbbs_server: " << nd.name << " " << v << " " << prod << std::endl;
                 // TODO defunct this node??
             }
