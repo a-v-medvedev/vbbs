@@ -43,10 +43,11 @@ static bool parse_next_line(std::ifstream &ifs,
 struct nodelist {
     int free = 0;
     int max_id = 0;
+    int slurm_id = 0;
     std::vector<node> freenodes, busynodes;
     std::string hostname;
     std::string busyloop;
-    static void init(int N) {
+    static void init(int N, int slurm_id = 0) {
         std::ofstream ofs;
         ofs.open(global::hostfile);
         if (!ofs.is_open()) {
@@ -57,13 +58,14 @@ struct nodelist {
         gethostname(local, 1024);
         ofs << "head " << local << std::endl;
         ofs << "max_id - " << N << std::endl;
+        ofs << "slurm_id - " << slurm_id << std::endl; 
         ofs.flush();
         usleep(10000);
         ofs.close();
         usleep(10000);
     }
     static bool check_host(std::string &hostname, bool &malformed) {
-        int max_id = -1;
+        int max_id = -1, slurm_id = -1;
         bool resolved_as_local = false;
         bool has_busyloop = false;
         std::ifstream ifs;
@@ -92,6 +94,7 @@ struct nodelist {
         ifs.close();
         malformed = malformed || (!resolved_as_local || hostname.size() == 0);
         malformed = malformed || (max_id < 0);
+        malformed = malformed || (slurm_id < 0);
         malformed = malformed || (!has_busyloop);
         return resolved_as_local; 
     }
@@ -114,6 +117,9 @@ struct nodelist {
             if (name == "max_id") {
                 if (max_id < id)
                     max_id = id;
+                continue;
+            } else if (name == "slurm_id") {
+                slurm_id = id;
                 continue;
             } else if (name == "head") {
                 hostname = state;
@@ -159,6 +165,7 @@ struct nodelist {
                 throw EX_FILE_OPEN_WRITE_ERROR;
         }
         ofs << "max_id - " << max_id << std::endl;
+        ofs << "slurm_id - " << slurm_id << std::endl;
         ofs.flush();
         usleep(10000);
         ofs.close(); 

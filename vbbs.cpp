@@ -88,6 +88,8 @@ int main(int argc, char **argv)
             add(N);
         } else if (mode == "init") {            
             init(std::stoi(N));
+        } else if (mode == "slurm_init") {            
+            slurm_init();
         } else if (mode == "busyloop") {
             busyloop(N);
         } else if (mode == "sempost") {

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <unistd.h>
+#include <regex>
+#include <assert.h>
+#include <algorithm>
 
 
 bool check_host(std::string &hostname, bool &malformed)
@@ -15,6 +18,52 @@ void init(int N)
 {
     global::sem.wait();
     nodelist::init(N);
+    global::sem.post();
+}
+
+void slurm_init()
+{
+    using namespace utils::str;
+    auto slurm_id = std::stoi(getenv("SLURM_JOBID", "FATAL: environment variable SLURM_JOBID must be defined"));
+    auto envnodes = getenv("SLURM_NODELIST", "FATAL: environment variable SLURM_NODELIST must be defined");
+    envnodes = std::regex_replace(envnodes, std::regex(",([^0-9])"), " $1");
+    std::vector<std::string> slurm_nodes;
+    for (const auto &item : split(envnodes, ' ')) {
+       	if (!contains(item, '[')) {
+			slurm_nodes.push_back(item);
+	   	} else {
+			auto B = split(item, '[');
+            assert(B.size() == 2);
+			const auto &main = B[0];
+            assert(B[1].back() == ']');
+            B[1].pop_back(); 
+			const auto &variable = B[1];
+			for (const auto &v : split(variable, ',')) {
+				if (!contains(v, '-')) {
+					slurm_nodes.push_back(main + v);
+				} else {
+					const auto limits = split(v, '-');
+                    assert(limits.size() == 2);
+                    assert(limits[0].length() == limits[1].length());
+                    size_t length = limits[0].length();
+                    for (int n = std::stoi(limits[0]); n <= std::stoi(limits[1]); ++n) {
+                        slurm_nodes.push_back(main + to_string_with_leading_zeroes(n, length));
+                    }
+				}
+			}
+	   	}
+    }
+//    for (auto &s : slurm_nodes) {
+//        std::cout << ">> " << s << std::endl;
+//    }
+    global::sem.wait();
+    nodelist::init(1, slurm_id);
+    nodelist l;
+    l.load();
+    for (const auto &name : slurm_nodes) {
+        l.freenodes.push_back(node { name, 0 });
+    }
+    l.save();
     global::sem.post();
 }
 
