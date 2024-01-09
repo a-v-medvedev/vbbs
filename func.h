@@ -67,6 +67,14 @@ void slurm_init()
     global::sem.post();
 }
 
+void show_slurm_id() {
+    nodelist l;
+    global::sem.wait();
+    l.load();
+    global::sem.post();
+    std::cout << "SLURM_JOBID: " << l.slurm_id << std::endl;
+}
+
 int start(int N)
 {
     nodelist l;
