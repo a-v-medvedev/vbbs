@@ -33,10 +33,12 @@ void sighandler(int signo)
 int main(int argc, char **argv)
 {
     const std::string varname = "VBBS_PARAMS";
+    std::string default_hostfile = "vbbs_hostfile";
     std::string host;
     unsigned port;
+    default_hostfile = utils::str::getenv("HOME", "HOME environment variable is not defined") + "/" + default_hostfile;
     if (!check_environment<unsigned>(varname, global::hostfile, host, port, global::semname, 
-                                              "hostfile", "master", 13345, "vbbs_sem")) {
+                                              default_hostfile, "master", 13345, "vbbs_sem")) {
         std::cerr << "VBBS: environment variable " << varname 
                   << " is not set or is incorrect, applying defaults" << std::endl;
     }
@@ -90,15 +92,15 @@ int main(int argc, char **argv)
             init(std::stoi(parameter));
         } else if (mode == "slurm_init") {            
             slurm_init();
+        } else if (mode == "slurm_show_id") {
+            show_slurm_id();
         } else if (mode == "busyloop") {
             busyloop(parameter);
         } else if (mode == "sempost") {
             global::sem.gotit = true;
             global::sem.post();
-        } else if (mode == "show_slurm_id") {
-            show_slurm_id();
         } else {
-            std::cerr << "VBBS: unknown mode" << std::endl;
+            std::cerr << "VBBS: unknown mode: " << mode << std::endl;
             global::sem.close();
             return 1;
         }

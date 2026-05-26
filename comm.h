@@ -2,6 +2,7 @@
 
 #include "sockpp/tcp_acceptor.h"
 #include "sockpp/tcp_connector.h"
+#include <memory>
 
 namespace comm {
     static inline int read_str(sockpp::stream_socket &s, std::string &tag, std::string &str) {

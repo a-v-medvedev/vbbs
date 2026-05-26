@@ -53,7 +53,7 @@ struct nodelist {
         if (!ofs.is_open()) {
             throw EX_FILE_OPEN_WRITE_ERROR;
         }
-        ofs << "busyloop " << "on" << std::endl;
+        ofs << "busyloop " << "off" << std::endl;
         char local[1024];
         gethostname(local, 1024);
         ofs << "head " << local << std::endl;
