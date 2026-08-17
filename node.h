@@ -54,11 +54,8 @@ struct nodelist {
             throw EX_FILE_OPEN_WRITE_ERROR;
         }
         ofs << "busyloop " << "off" << std::endl;
-        if (hostname.empty()) {
-            char local[1024];
-            gethostname(local, 1024);
-            hostname = local; 
-        }
+        char local[1024];
+        gethostname(local, 1024);
         ofs << "head " << local << std::endl;
         ofs << "max_id - " << N << std::endl;
         ofs << "slurm_id - " << slurm_id << std::endl; 
