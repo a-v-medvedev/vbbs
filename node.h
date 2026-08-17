@@ -54,8 +54,11 @@ struct nodelist {
             throw EX_FILE_OPEN_WRITE_ERROR;
         }
         ofs << "busyloop " << "off" << std::endl;
-        char local[1024];
-        gethostname(local, 1024);
+        if (hostname.empty()) {
+            char local[1024];
+            gethostname(local, 1024);
+            hostname = local; 
+        }
         ofs << "head " << local << std::endl;
         ofs << "max_id - " << N << std::endl;
         ofs << "slurm_id - " << slurm_id << std::endl; 
@@ -86,7 +89,7 @@ struct nodelist {
                 char local[1024];
                 hostname = state;
                 gethostname(local, 1024);
-                resolved_as_local = (hostname == local);
+                resolved_as_local = true; //(hostname == local); temp diabled -- we need better logic here
             } else if (name == "busyloop") {
                 has_busyloop = (state == "on" || state == "off");
             }
