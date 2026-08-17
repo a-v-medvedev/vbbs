@@ -47,9 +47,6 @@ int main(int argc, char **argv)
         std::cerr << "VBBS: environment variable " << varname 
                   << " is not set or is incorrect, applying defaults" << std::endl;
     }
-    //if (argc < 3) {
-    //    return 1;
-    //}
     std::string mode(argv[1]);
     if (signal(SIGTERM, sighandler) == SIG_ERR || signal(SIGINT, sighandler) == SIG_ERR ||
         signal(SIGHUP, sighandler) == SIG_ERR || signal(SIGBUS, sighandler) == SIG_ERR ||
@@ -100,9 +97,12 @@ int main(int argc, char **argv)
             std::string parameter(argv[2]);
             add(parameter);
         } else if (mode == "init") { 
-    	    if (argc < 3) usage();
-            std::string parameter(argv[2]);
-            init(std::stoi(parameter));
+    	    if (argc < 3) {
+	        init();
+	    } else {
+                std::string parameter(argv[2]);
+                init(std::stoi(parameter));
+	    }
         } else if (mode == "slurm_init") { 
             slurm_init();
         } else if (mode == "slurm_show_id") {
