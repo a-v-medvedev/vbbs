@@ -44,8 +44,10 @@ int main(int argc, char **argv)
     default_hostfile = utils::str::getenv("HOME", "HOME environment variable is not defined") + "/" + default_hostfile;
     if (!check_environment<unsigned>(varname, global::hostfile, host, port, global::semname, 
                                               default_hostfile, "master", 13345, "vbbs_sem")) {
+#ifdef WITH_DEBUG
         std::cerr << "VBBS: environment variable " << varname 
                   << " is not set or is incorrect, applying defaults" << std::endl;
+#endif
     }
     std::string mode(argv[1]);
     if (signal(SIGTERM, sighandler) == SIG_ERR || signal(SIGINT, sighandler) == SIG_ERR ||

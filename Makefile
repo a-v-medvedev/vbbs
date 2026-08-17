@@ -1,7 +1,7 @@
 MPICXX ?= mpicxx
 
 # FIXME __USE_BSD is a fix for gcc 9.1 on Lom2
-CXX_FLAGS += -D__USE_BSD -O0 -g -DWITH_DEBUG -Isockpp.bin/include -Lsockpp.bin/lib64
+CXX_FLAGS += -D__USE_BSD -O0 -g -Isockpp.bin/include -Lsockpp.bin/lib64
 #CXX_FLAGS += -D__USE_BSD -O2 -DWITH_DEBUG -Isockpp.bin/include -Lsockpp.bin/lib64
 
 all: vbbs vbbs_client vbbs_server
