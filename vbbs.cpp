@@ -30,6 +30,11 @@ void sighandler(int signo)
     exit(1);
 }
 
+void usage() {
+    std::cerr << "VBBS: Usage: vbbs start|stop|defunct|add|init|slurm_init|slurm_show_id|busyloop|sempost <N>" << std::endl;
+    exit(1);
+}
+
 int main(int argc, char **argv)
 {
     const std::string varname = "VBBS_PARAMS";
@@ -42,12 +47,10 @@ int main(int argc, char **argv)
         std::cerr << "VBBS: environment variable " << varname 
                   << " is not set or is incorrect, applying defaults" << std::endl;
     }
-    if (argc < 3) {
-        std::cerr << "VBBS: Usage: vbbs start|stop|defunct|add|init|busyloop|sempost <N>" << std::endl;
-        return 1;
-    }
+    //if (argc < 3) {
+    //    return 1;
+    //}
     std::string mode(argv[1]);
-    std::string parameter(argv[2]);
     if (signal(SIGTERM, sighandler) == SIG_ERR || signal(SIGINT, sighandler) == SIG_ERR ||
         signal(SIGHUP, sighandler) == SIG_ERR || signal(SIGBUS, sighandler) == SIG_ERR ||
         signal(SIGSEGV, sighandler) == SIG_ERR || signal(SIGFPE, sighandler) == SIG_ERR ||
@@ -81,20 +84,32 @@ int main(int argc, char **argv)
     int r = 0;
     try {
         if (mode == "start") {
+    	    if (argc < 3) usage();
+            std::string parameter(argv[2]);
             r = start(std::stoi(parameter));
         } else if (mode == "stop") {
+    	    if (argc < 3) usage();
+            std::string parameter(argv[2]);
             r = stop(std::stoi(parameter));
         } else if (mode == "defunct") {
+    	    if (argc < 3) usage();
+            std::string parameter(argv[2]);
             defunct(parameter);
         } else if (mode == "add") {
+    	    if (argc < 3) usage();
+            std::string parameter(argv[2]);
             add(parameter);
-        } else if (mode == "init") {            
+        } else if (mode == "init") { 
+    	    if (argc < 3) usage();
+            std::string parameter(argv[2]);
             init(std::stoi(parameter));
-        } else if (mode == "slurm_init") {            
+        } else if (mode == "slurm_init") { 
             slurm_init();
         } else if (mode == "slurm_show_id") {
             show_slurm_id();
         } else if (mode == "busyloop") {
+    	    if (argc < 3) usage();
+            std::string parameter(argv[2]);
             busyloop(parameter);
         } else if (mode == "sempost") {
             global::sem.gotit = true;
