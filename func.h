@@ -14,7 +14,7 @@ bool check_host(std::string &hostname, bool &malformed)
     return r;
 }
 
-void init(int N)
+void init(int N = 0)
 {
     global::sem.wait();
     nodelist::init(N);

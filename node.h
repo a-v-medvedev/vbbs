@@ -47,7 +47,7 @@ struct nodelist {
     std::vector<node> freenodes, busynodes;
     std::string hostname;
     std::string busyloop;
-    static void init(int N = 1, int slurm_id = 0) {
+    static void init(int N = 0, int slurm_id = 0) {
         std::ofstream ofs;
         ofs.open(global::hostfile);
         if (!ofs.is_open()) {
