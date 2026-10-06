@@ -31,7 +31,7 @@ void sighandler(int signo)
 }
 
 void usage() {
-    std::cerr << "VBBS: Usage: vbbs start|stop|defunct|add|init|slurm_init|slurm_show_id|busyloop|sempost <N>" << std::endl;
+    std::cerr << "VBBS: Usage: vbbs start|stop|defunct|add|init|slurm_init|sem|slurm_show_id|busyloop <N>" << std::endl;
     exit(1);
 }
 
@@ -58,7 +58,8 @@ int main(int argc, char **argv)
         std::cerr << "VBBS: cannot setup a signal handler" << std::endl;
         return 1;
     }
-    if (mode == "init" || mode == "slurm_init") {
+    bool is_init_mode = (mode == "init" || mode == "sem" || mode == "slurm_init");
+    if (is_init_mode) {
         global::sem.unlink();
         if (!global::sem.open(true))
             return 1;
@@ -66,7 +67,6 @@ int main(int argc, char **argv)
         if (!global::sem.open(false))
             return 1;
     }
-    bool is_init_mode = (mode == "init" || mode == "sempost" || mode == "slurm_init");
     std::string given_hostname;
     bool malformed = false;
     if (!is_init_mode) {
@@ -113,9 +113,8 @@ int main(int argc, char **argv)
     	    if (argc < 3) usage();
             std::string parameter(argv[2]);
             busyloop(parameter);
-        } else if (mode == "sempost") {
-            global::sem.gotit = true;
-            global::sem.post();
+        } else if (mode == "sem") {
+            ;
         } else {
             std::cerr << "VBBS: unknown mode: " << mode << std::endl;
             global::sem.close();

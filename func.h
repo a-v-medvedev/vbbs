@@ -57,7 +57,7 @@ void slurm_init()
 //        std::cout << ">> " << s << std::endl;
 //    }
     global::sem.wait();
-    nodelist::init(1, slurm_id);
+    nodelist::init(0, slurm_id);
     nodelist l;
     l.load();
     for (const auto &name : slurm_nodes) {
